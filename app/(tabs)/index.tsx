@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator, FlatList, RefreshControl,
+  StyleSheet, Text, TouchableOpacity, View,
+} from 'react-native';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { BlockCard } from '@/components/schedule/BlockCard';
 import { CurrentBlock } from '@/components/schedule/CurrentBlock';
+import { AICommandBar } from '@/components/ai/AICommandBar';
+import { AIActionSheet } from '@/components/ai/AIActionSheet';
 import { computeDailySummary, todayDateISO } from '@/lib/scheduler/engine';
 import { saveDailyStats } from '@/lib/stats/saveDailyStats';
 import { processSyncQueue } from '@/lib/sync/syncEngine';
@@ -13,12 +18,12 @@ import { useAuthStore } from '@/stores/authStore';
 import { useScheduleStore } from '@/stores/scheduleStore';
 import { useWaterStore } from '@/stores/waterStore';
 import { useHabitStore } from '@/stores/habitStore';
+import { useAIStore } from '@/stores/aiStore';
+import type { AIContext } from '@/lib/ai/client';
 
 function formatDate(iso: string) {
   return new Date(`${iso}T12:00:00`).toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
+    weekday: 'long', month: 'long', day: 'numeric',
   });
 }
 
@@ -26,12 +31,21 @@ export default function TodayScreen() {
   const scheme = useColorScheme();
   const colors = Colors[scheme ?? 'light'];
   const user = useAuthStore((s) => s.user);
+
   const {
     todayBlocks, currentBlock, nextBlock, isLoading,
     load, startBlock, completeBlock, skipBlock, refreshCurrent,
   } = useScheduleStore();
-  const [refreshing, setRefreshing] = useState(false);
 
+  const { todayTotalMl } = useWaterStore();
+  const { todayHabits } = useHabitStore();
+
+  const {
+    isLoading: aiLoading, pendingActions, aiResponse, error: aiError,
+    sendCommand, confirmActions, dismissActions,
+  } = useAIStore();
+
+  const [refreshing, setRefreshing] = useState(false);
   const date = todayDateISO();
 
   useEffect(() => {
@@ -47,7 +61,6 @@ export default function TodayScreen() {
     if (!user) return;
     setRefreshing(true);
     try {
-      // Push pending local changes, then reload stores for today
       if (getIsOnline()) await processSyncQueue().catch(() => {});
       await Promise.all([
         load(user.id, date),
@@ -69,8 +82,34 @@ export default function TodayScreen() {
     }
   }
 
+  function buildAIContext(): AIContext {
+    const completedHabits = Object.entries(todayHabits)
+      .filter(([, log]) => log?.completed)
+      .map(([key]) => key);
+
+    return {
+      date,
+      blocks: todayBlocks.map((b) => ({
+        id: b.id,
+        title: b.title,
+        category: b.category,
+        scheduledStart: b.scheduledStart,
+        scheduledEnd: b.scheduledEnd,
+        status: b.status,
+      })),
+      waterMl: todayTotalMl,
+      habitsCompleted: completedHabits,
+    };
+  }
+
+  function handleAISend(message: string) {
+    if (!user) return;
+    sendCommand(message, buildAIContext(), user.id);
+  }
+
   const shownBlock = currentBlock ?? nextBlock;
   const listBlocks = todayBlocks.filter((b) => b.id !== shownBlock?.id);
+  const showAISheet = pendingActions.length > 0 || (!!aiResponse && !aiLoading);
 
   function header() {
     return (
@@ -151,6 +190,20 @@ export default function TodayScreen() {
           />
         }
       />
+
+      <AICommandBar onSend={handleAISend} isLoading={aiLoading} />
+
+      <AIActionSheet
+        visible={showAISheet}
+        aiResponse={aiError ?? aiResponse}
+        actions={pendingActions}
+        isLoading={aiLoading}
+        onConfirm={() => {
+          if (!user) return;
+          confirmActions(user.id, () => load(user.id, date));
+        }}
+        onDismiss={dismissActions}
+      />
     </View>
   );
 }
@@ -167,7 +220,7 @@ function Stat({ label, value, color }: { label: string; value: string; color: st
 const s = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  list: { padding: 16, paddingBottom: 32 },
+  list: { padding: 16, paddingBottom: 8 },
   headerWrap: { marginBottom: 4 },
   dateRow: {
     flexDirection: 'row', justifyContent: 'space-between',
