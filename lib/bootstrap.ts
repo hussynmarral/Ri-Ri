@@ -2,6 +2,7 @@ import { runLocalMigrations } from './db/migrations';
 import { initNetworkMonitor, getIsOnline, onNetworkChange } from './sync/networkState';
 import { processSyncQueue, bootstrapSync } from './sync/syncEngine';
 import { seedDefaultTemplates } from './scheduler/seedTemplates';
+import { requestNotificationPermissions } from './notifications/permissions';
 
 let _bootstrapped = false;
 
@@ -15,17 +16,20 @@ export async function bootstrapApp(userId?: string) {
   // 2. Start network monitor
   await initNetworkMonitor();
 
-  // 3. Seed default templates (no-op if already seeded)
+  // 3. Request notification permissions (non-blocking)
+  requestNotificationPermissions().catch(() => {});
+
+  // 4. Seed default templates (no-op if already seeded)
   if (userId) {
     await seedDefaultTemplates(userId).catch(() => {});
   }
 
-  // 4. If online and authenticated, sync
+  // 5. If online and authenticated, sync
   if (userId && getIsOnline()) {
     await bootstrapSync(userId).catch(() => {});
   }
 
-  // 4. Auto-sync whenever we come back online
+  // 6. Auto-sync whenever we come back online
   onNetworkChange(async (online) => {
     if (online && userId) {
       await processSyncQueue().catch(() => {});

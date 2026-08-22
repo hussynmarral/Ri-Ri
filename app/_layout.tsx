@@ -8,6 +8,11 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { useAppInit } from '@/hooks/useAppInit';
+import { useNotificationScheduler } from '@/hooks/useNotificationScheduler';
+import {
+  configureNotificationHandler,
+  addNotificationResponseListener,
+} from '@/lib/notifications';
 import { useAuthStore } from '@/stores/authStore';
 
 export { ErrorBoundary } from 'expo-router';
@@ -15,6 +20,7 @@ export { ErrorBoundary } from 'expo-router';
 export const unstable_settings = { initialRouteName: '(tabs)' };
 
 SplashScreen.preventAutoHideAsync();
+configureNotificationHandler();
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -40,6 +46,18 @@ function RootLayoutNav() {
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
   const segments = useSegments();
+
+  useNotificationScheduler();
+
+  useEffect(() => {
+    // Navigate to Today tab when a block reminder is tapped
+    const remove = addNotificationResponseListener((data) => {
+      if (data.type === 'block_reminder' || data.type === 'water_reminder') {
+        router.replace('/(tabs)');
+      }
+    });
+    return remove;
+  }, []);
 
   useEffect(() => {
     if (!isReady) return;
