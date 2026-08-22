@@ -22,6 +22,7 @@ export function configureNotificationHandler(): void {
 export function addNotificationResponseListener(
   onNavigate: (data: Record<string, unknown>) => void,
 ): () => void {
+  if (Platform.OS === 'web') return () => {};
   const sub = Notifications.addNotificationResponseReceivedListener((response) => {
     const data = response.notification.request.content.data as Record<string, unknown>;
     onNavigate(data);

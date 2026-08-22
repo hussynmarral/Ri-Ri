@@ -1,3 +1,4 @@
+import { Platform, Text } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { Tabs } from 'expo-router';
 import { type ColorValue } from 'react-native';
@@ -7,7 +8,24 @@ import { useColorScheme } from '@/components/useColorScheme';
 
 type SymbolName = React.ComponentProps<typeof SymbolView>['name'];
 
-function TabIcon({ ios, android, color, size }: { ios: string; android: string; color: ColorValue; size: number }) {
+// Web emoji fallbacks keyed by android symbol name
+const WEB_ICONS: Record<string, string> = {
+  calendar_today: '📅',
+  water_drop: '💧',
+  check_circle: '✓',
+  more_horiz: '⋯',
+};
+
+function TabIcon({
+  ios, android, color, size,
+}: { ios: string; android: string; color: ColorValue; size: number }) {
+  if (Platform.OS === 'web') {
+    return (
+      <Text style={{ color: color as string, fontSize: size * 0.9, lineHeight: size }}>
+        {WEB_ICONS[android] ?? '●'}
+      </Text>
+    );
+  }
   return (
     <SymbolView
       name={{ ios, android: android as never, web: android } as SymbolName}

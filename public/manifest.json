@@ -1,0 +1,19 @@
+{
+  "name": "Ri Ri",
+  "short_name": "Ri Ri",
+  "description": "Your personal operating system",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0F0F10",
+  "theme_color": "#6366F1",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

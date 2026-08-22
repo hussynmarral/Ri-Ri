@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ri Ri — Offline</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: #0F0F10;
+      color: #F9FAFB;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+    }
+    .icon { font-size: 64px; margin-bottom: 24px; }
+    h1 { font-size: 24px; font-weight: 700; margin-bottom: 12px; }
+    p { font-size: 15px; color: #9CA3AF; line-height: 1.5; max-width: 300px; }
+    button {
+      margin-top: 32px;
+      padding: 14px 28px;
+      border-radius: 12px;
+      background: #6366F1;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <div class="icon">📡</div>
+    <h1>You're offline</h1>
+    <p>Ri Ri needs a connection to sync your schedule. Your local data is safe.</p>
+    <button onclick="location.reload()">Try again</button>
+  </div>
+</body>
+</html>

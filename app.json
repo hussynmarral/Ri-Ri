@@ -22,7 +22,13 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "Ri Ri",
+      "shortName": "Ri Ri",
+      "description": "Your personal operating system",
+      "themeColor": "#6366F1",
+      "backgroundColor": "#0F0F10",
+      "lang": "en"
     },
     "plugins": [
       "expo-router",
