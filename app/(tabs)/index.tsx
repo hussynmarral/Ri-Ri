@@ -41,7 +41,7 @@ export default function TodayScreen() {
   const { todayHabits } = useHabitStore();
 
   const {
-    isLoading: aiLoading, pendingActions, aiResponse, error: aiError,
+    isLoading: aiLoading, pendingActions, actionValidations, aiResponse, error: aiError,
     sendCommand, confirmActions, dismissActions,
   } = useAIStore();
 
@@ -197,6 +197,7 @@ export default function TodayScreen() {
         visible={showAISheet}
         aiResponse={aiError ?? aiResponse}
         actions={pendingActions}
+        actionValidations={actionValidations}
         isLoading={aiLoading}
         onConfirm={() => {
           if (!user) return;

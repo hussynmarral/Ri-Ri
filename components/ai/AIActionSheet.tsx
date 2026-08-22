@@ -3,28 +3,36 @@ import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import type { AIAction } from '@/types';
+import type { ValidationResult } from '@/lib/ai/validator';
 
 const ACTION_LABELS: Record<string, string> = {
   add_event: 'Add event',
   move_task: 'Move block',
   change_schedule: 'Change schedule',
-  change_recurring: 'Edit recurring block',
-  delete_recurring: 'Remove recurring block',
+  change_recurring: 'Edit recurring',
+  delete_recurring: 'Remove recurring',
   bulk_reschedule: 'Bulk reschedule',
 };
 
 interface Props {
   visible: boolean;
-  aiResponse: string;
+  aiResponse: string | null;
   actions: AIAction[];
+  actionValidations: ValidationResult[];
   isLoading: boolean;
   onConfirm: () => void;
   onDismiss: () => void;
 }
 
-export function AIActionSheet({ visible, aiResponse, actions, isLoading, onConfirm, onDismiss }: Props) {
+export function AIActionSheet({
+  visible, aiResponse, actions, actionValidations, isLoading, onConfirm, onDismiss,
+}: Props) {
   const scheme = useColorScheme();
   const colors = Colors[scheme ?? 'light'];
+
+  const allValid = actionValidations.length === 0 ||
+    actionValidations.every((v) => v.valid);
+  const canApply = actions.length > 0 && allValid && !isLoading;
 
   return (
     <Modal
@@ -36,29 +44,63 @@ export function AIActionSheet({ visible, aiResponse, actions, isLoading, onConfi
       <View style={s.overlay}>
         <View style={[s.sheet, { backgroundColor: colors.card }]}>
           {/* AI response text */}
-          {aiResponse ? (
+          {!!aiResponse && (
             <Text style={[s.responseText, { color: colors.text }]}>{aiResponse}</Text>
-          ) : null}
+          )}
 
           {/* Proposed actions */}
           {actions.length > 0 && (
             <>
               <Text style={[s.actionsLabel, { color: colors.muted }]}>Proposed changes</Text>
               <ScrollView style={s.actionsList} showsVerticalScrollIndicator={false}>
-                {actions.map((action, i) => (
-                  <View key={i} style={[s.actionRow, { borderColor: colors.border }]}>
-                    <View style={[s.actionTypeBadge, { backgroundColor: colors.primary + '22' }]}>
-                      <Text style={[s.actionTypeText, { color: colors.primary }]}>
-                        {ACTION_LABELS[action.type] ?? action.type}
-                      </Text>
+                {actions.map((action, i) => {
+                  const validation = actionValidations[i];
+                  const isValid = !validation || validation.valid;
+                  return (
+                    <View
+                      key={i}
+                      style={[
+                        s.actionRow,
+                        {
+                          borderColor: isValid ? colors.border : colors.danger,
+                          backgroundColor: isValid ? 'transparent' : colors.danger + '10',
+                        },
+                      ]}
+                    >
+                      <View style={s.actionRowHeader}>
+                        <View style={[s.actionTypeBadge, { backgroundColor: colors.primary + '22' }]}>
+                          <Text style={[s.actionTypeText, { color: colors.primary }]}>
+                            {ACTION_LABELS[action.type] ?? action.type}
+                          </Text>
+                        </View>
+                        {validation && (
+                          <Text style={{ fontSize: 16 }}>{isValid ? '✓' : '✗'}</Text>
+                        )}
+                      </View>
+
+                      <Text style={[s.actionDesc, { color: colors.text }]}>{action.description}</Text>
+
+                      {/* Validation error */}
+                      {validation && !isValid && (
+                        <Text style={[s.validationError, { color: colors.danger }]}>
+                          {validation.reason}
+                        </Text>
+                      )}
+
+                      {action.requiresConfirmation && isValid && (
+                        <Text style={[s.confirmNote, { color: colors.warning }]}>Requires confirmation</Text>
+                      )}
                     </View>
-                    <Text style={[s.actionDesc, { color: colors.text }]}>{action.description}</Text>
-                    {action.requiresConfirmation && (
-                      <Text style={[s.confirmNote, { color: colors.warning }]}>Requires confirmation</Text>
-                    )}
-                  </View>
-                ))}
+                  );
+                })}
               </ScrollView>
+
+              {/* Warning if any action is invalid */}
+              {!allValid && (
+                <Text style={[s.blockNote, { color: colors.danger }]}>
+                  Fix validation errors before applying.
+                </Text>
+              )}
             </>
           )}
 
@@ -73,9 +115,9 @@ export function AIActionSheet({ visible, aiResponse, actions, isLoading, onConfi
 
             {actions.length > 0 && (
               <TouchableOpacity
-                style={[s.btn, { backgroundColor: colors.primary, opacity: isLoading ? 0.6 : 1 }]}
+                style={[s.btn, { backgroundColor: colors.primary, opacity: canApply ? 1 : 0.4 }]}
                 onPress={onConfirm}
-                disabled={isLoading}
+                disabled={!canApply}
               >
                 <Text style={[s.btnText, { color: '#fff' }]}>
                   {isLoading ? 'Applying…' : 'Apply'}
@@ -100,21 +142,28 @@ const s = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 24,
     paddingBottom: 40,
-    maxHeight: '75%',
+    maxHeight: '80%',
   },
   responseText: { fontSize: 16, lineHeight: 24, marginBottom: 16 },
   actionsLabel: {
     fontSize: 12, fontWeight: '600', letterSpacing: 0.5,
     textTransform: 'uppercase', marginBottom: 10,
   },
-  actionsList: { maxHeight: 280 },
+  actionsList: { maxHeight: 300 },
   actionRow: {
     borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 10,
   },
-  actionTypeBadge: { alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 6 },
+  actionRowHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6,
+  },
+  actionTypeBadge: {
+    alignSelf: 'flex-start', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3,
+  },
   actionTypeText: { fontSize: 11, fontWeight: '700' },
   actionDesc: { fontSize: 14, lineHeight: 20 },
+  validationError: { fontSize: 12, marginTop: 6, fontWeight: '500' },
   confirmNote: { fontSize: 12, marginTop: 4 },
+  blockNote: { fontSize: 13, fontWeight: '500', marginTop: 8, textAlign: 'center' },
   btnRow: { flexDirection: 'row', gap: 12, marginTop: 20 },
   btn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   btnText: { fontSize: 15, fontWeight: '700' },

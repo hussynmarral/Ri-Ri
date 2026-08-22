@@ -4,12 +4,18 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db/client';
 import { routineTemplates, scheduleInstances, scheduleOverrides } from '@/lib/db/schema';
 import { enqueueChange } from '@/lib/sync/syncQueue';
+import { validateAIAction } from '@/lib/ai/validator';
+import { todayDateISO } from '@/lib/scheduler/engine';
 import type { AIAction } from '@/types';
 
 export type ActionResult = { success: boolean; message: string };
 
 export async function executeAIAction(action: AIAction, userId: string): Promise<ActionResult> {
   try {
+    // Final validation gate — prevents execution even if the UI check was bypassed
+    const validation = await validateAIAction(action, userId, todayDateISO());
+    if (!validation.valid) return { success: false, message: validation.reason ?? 'Validation failed' };
+
     switch (action.type) {
       case 'add_event':
         return await addEvent(action.payload, userId);
