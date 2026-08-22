@@ -6,10 +6,7 @@ import { useWaterStore } from '@/stores/waterStore';
 import { useWorkoutStore } from '@/stores/workoutStore';
 import { useHabitStore } from '@/stores/habitStore';
 import { bootstrapApp } from '@/lib/bootstrap';
-
-function todayISO() {
-  return new Date().toISOString().split('T')[0];
-}
+import { todayDateISO } from '@/lib/scheduler/engine';
 
 export function useAppInit() {
   const [isReady, setIsReady] = useState(false);
@@ -29,7 +26,7 @@ export function useAppInit() {
 
       const userId = useAuthStore.getState().user?.id;
       if (!cancelled && userId) {
-        const date = todayISO();
+        const date = todayDateISO();
         await Promise.all([
           loadSettings(userId),
           loadSchedule(userId, date),
@@ -49,7 +46,7 @@ export function useAppInit() {
   // Re-load data when user changes (login/logout)
   useEffect(() => {
     if (!user) return;
-    const date = todayISO();
+    const date = todayDateISO();
     const uid = user.id;
     loadSettings(uid);
     loadSchedule(uid, date);

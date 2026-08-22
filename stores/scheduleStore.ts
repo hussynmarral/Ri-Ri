@@ -3,6 +3,8 @@ import { db } from '@/lib/db/client';
 import { scheduleInstances } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { enqueueChange } from '@/lib/sync/syncQueue';
+import { generateDayInstances } from '@/lib/scheduler/generateDay';
+import { isCurrentBlock, isUpcoming } from '@/lib/scheduler/engine';
 import type { ScheduleBlock, CompletionStatus } from '@/types';
 
 interface ScheduleState {
@@ -18,27 +20,9 @@ interface ScheduleState {
 }
 
 function findCurrentAndNext(blocks: ScheduleBlock[]) {
-  const now = new Date();
-  let current: ScheduleBlock | null = null;
-  let next: ScheduleBlock | null = null;
-
-  for (const b of blocks) {
-    const start = new Date(b.scheduledStart);
-    const end = new Date(b.scheduledEnd);
-
-    if (b.status === 'in_progress') {
-      current = b;
-      continue;
-    }
-    if (!current && now >= start && now < end && b.status === 'pending') {
-      current = b;
-      continue;
-    }
-    if (!next && start > now && b.status === 'pending') {
-      next = b;
-    }
-  }
-
+  const sorted = [...blocks].sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart));
+  const current = sorted.find(isCurrentBlock) ?? null;
+  const next = sorted.find((b) => isUpcoming(b) && (!current || b.id !== current.id)) ?? null;
   return { current, next };
 }
 
@@ -50,30 +34,8 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
 
   load: async (userId, date) => {
     set({ isLoading: true });
-    const rows = await db
-      .select()
-      .from(scheduleInstances)
-      .where(and(eq(scheduleInstances.userId, userId), eq(scheduleInstances.instanceDate, date)));
-
-    const blocks: ScheduleBlock[] = rows.map((r) => ({
-      id: r.id,
-      userId: r.userId,
-      instanceDate: r.instanceDate,
-      category: r.category as ScheduleBlock['category'],
-      title: r.title,
-      scheduledStart: r.scheduledStart,
-      scheduledEnd: r.scheduledEnd,
-      actualStart: r.actualStart,
-      actualEnd: r.actualEnd,
-      status: r.status as CompletionStatus,
-      isFlexWindow: !!r.isFlexWindow,
-      latenessMinutes: r.latenessMinutes,
-      completionPercent: r.completionPercent,
-      notes: r.notes,
-      templateId: r.templateId,
-      overrideId: r.overrideId,
-    }));
-
+    // generateDayInstances returns existing rows or generates + persists new ones
+    const blocks = await generateDayInstances(userId, date);
     const { current, next } = findCurrentAndNext(blocks);
     set({ todayBlocks: blocks, currentBlock: current, nextBlock: next, isLoading: false });
   },
@@ -95,7 +57,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       .where(eq(scheduleInstances.id, id));
 
     await enqueueChange('schedule_instances', 'update', id, {
-      id, user_id: block.userId ?? '',
+      id, user_id: block.userId,
       status: 'in_progress', actual_start: now,
       lateness_minutes: latenessMinutes, updated_at: now,
     });
