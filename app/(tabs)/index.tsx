@@ -6,6 +6,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { BlockCard } from '@/components/schedule/BlockCard';
 import { CurrentBlock } from '@/components/schedule/CurrentBlock';
 import { computeDailySummary, todayDateISO } from '@/lib/scheduler/engine';
+import { saveDailyStats } from '@/lib/stats/saveDailyStats';
 import { useAuthStore } from '@/stores/authStore';
 import { useScheduleStore } from '@/stores/scheduleStore';
 
@@ -37,6 +38,15 @@ export default function TodayScreen() {
 
   const summary = computeDailySummary(todayBlocks);
 
+  // Auto-save daily stats when the review block is completed
+  async function handleComplete(id: string) {
+    await completeBlock(id);
+    const block = todayBlocks.find((b) => b.id === id);
+    if (block?.category === 'review' && user) {
+      saveDailyStats(user.id, date).catch(() => {});
+    }
+  }
+
   const shownBlock = currentBlock ?? nextBlock;
 
   const listBlocks = todayBlocks.filter((b) => b.id !== shownBlock?.id);
@@ -67,7 +77,7 @@ export default function TodayScreen() {
           <CurrentBlock
             block={shownBlock}
             onStart={() => startBlock(shownBlock.id)}
-            onComplete={() => completeBlock(shownBlock.id)}
+            onComplete={() => handleComplete(shownBlock.id)}
             onSkip={() => skipBlock(shownBlock.id)}
           />
         )}

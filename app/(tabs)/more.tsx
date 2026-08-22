@@ -2,6 +2,7 @@ import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'rea
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
+import { GymRotation } from '@/components/workout/GymRotation';
 import { useAuthStore } from '@/stores/authStore';
 import { useWorkoutStore } from '@/stores/workoutStore';
 
@@ -77,6 +78,10 @@ export default function MoreScreen() {
         </>
       )}
 
+      {/* Full gym rotation */}
+      <SectionHeader label="Gym Rotation" colors={colors} />
+      <GymRotation todayGymDay={todaySession?.gymDay ?? 1} />
+
       {/* App info */}
       <SectionHeader label="App" colors={colors} />
       <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -108,7 +113,11 @@ function Row({
   return (
     <TouchableOpacity style={s.row} onPress={onPress} disabled={!onPress} activeOpacity={0.7}>
       <Text style={[s.rowLabel, { color: danger ? colors.danger : colors.text }]}>{label}</Text>
-      {value ? <Text style={[s.rowValue, { color: colors.muted }]} numberOfLines={1}>{value}</Text> : null}
+      {value ? (
+        <Text style={[s.rowValue, { color: colors.muted }]} numberOfLines={1}>
+          {value}
+        </Text>
+      ) : null}
     </TouchableOpacity>
   );
 }
