@@ -25,18 +25,21 @@ export type CompletionStatus = 'pending' | 'in_progress' | 'completed' | 'skippe
 
 export interface ScheduleBlock {
   id: string;
-  date: string; // ISO date YYYY-MM-DD
+  userId: string;
+  instanceDate: string; // ISO date YYYY-MM-DD
   category: BlockCategory;
   title: string;
   scheduledStart: string; // ISO datetime
   scheduledEnd: string;
-  actualStart?: string;
-  actualEnd?: string;
+  actualStart?: string | null;
+  actualEnd?: string | null;
   status: CompletionStatus;
   isFlexWindow: boolean;
-  isFlex?: boolean;
-  notes?: string;
-  overrideId?: string; // links to a schedule_override if applicable
+  latenessMinutes: number;
+  completionPercent: number;
+  notes?: string | null;
+  templateId?: string | null;
+  overrideId?: string | null;
 }
 
 export interface DisciplineRecord {
