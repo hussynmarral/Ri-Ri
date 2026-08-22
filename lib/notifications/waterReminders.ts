@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { WATER_DAILY_TARGET_ML } from '@/constants/schedule';
 
@@ -6,6 +7,7 @@ const WATER_REMINDER_HOURS = [14, 16, 18, 20, 22];
 const WATER_REMINDER_ID_PREFIX = 'water_';
 
 export async function scheduleWaterReminders(currentTotalMl: number): Promise<void> {
+  if (Platform.OS === 'web') return;
   // Cancel existing water reminders before rescheduling
   await cancelWaterReminders();
 
@@ -38,6 +40,7 @@ export async function scheduleWaterReminders(currentTotalMl: number): Promise<vo
 }
 
 export async function cancelWaterReminders(): Promise<void> {
+  if (Platform.OS === 'web') return;
   for (const hour of WATER_REMINDER_HOURS) {
     await Notifications.cancelScheduledNotificationAsync(`${WATER_REMINDER_ID_PREFIX}${hour}`).catch(() => {});
   }

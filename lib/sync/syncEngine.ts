@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase/client';
 import { db } from '@/lib/db/client';
 import { getPendingItems, markSynced, markError, clearSynced } from './syncQueue';
@@ -17,6 +18,15 @@ const SYNCABLE_TABLES = new Set([
   'daily_stats',
   'weekly_stats',
 ]);
+
+// Column names from Supabase responses must only contain alphanumeric + underscore
+// to prevent SQL injection via maliciously-crafted server responses.
+function safeCol(name: string): string {
+  if (!/^[a-z_][a-z0-9_]*$/i.test(name)) {
+    throw new Error(`Unsafe column name: "${name}"`);
+  }
+  return name;
+}
 
 let _isSyncing = false;
 
@@ -72,11 +82,13 @@ export async function processSyncQueue(): Promise<{ synced: number; errors: numb
 
 // Pull remote changes for a specific table since a given timestamp.
 // Merges into local SQLite using last-write-wins on updated_at.
+// No-op on web — expo-sqlite raw client is not available.
 export async function pullRemoteTable(
   tableName: string,
   since: string,
   userId: string,
 ) {
+  if (Platform.OS === 'web') return;
   if (!getIsOnline() || !SYNCABLE_TABLES.has(tableName)) return;
 
   const { data, error } = await (supabase as any)
@@ -87,9 +99,8 @@ export async function pullRemoteTable(
 
   if (error || !data?.length) return;
 
-  // Upsert each row into local SQLite via the expo-sqlite driver directly.
   for (const row of data) {
-    const cols = Object.keys(row);
+    const cols = Object.keys(row).map(safeCol);
     const placeholders = cols.map(() => '?').join(', ');
     const setClauses = cols
       .filter((c) => c !== 'id')

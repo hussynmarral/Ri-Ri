@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase/client';
 import { db } from '@/lib/db/client';
@@ -25,7 +26,19 @@ interface RealtimePayload {
   old: Record<string, unknown>;
 }
 
+// Column names from Supabase must only contain alphanumeric + underscore
+// to prevent SQL injection via maliciously-crafted server responses.
+function safeCol(name: string): string {
+  if (!/^[a-z_][a-z0-9_]*$/i.test(name)) {
+    throw new Error(`Unsafe column name: "${name}"`);
+  }
+  return name;
+}
+
 async function applyChange(table: string, payload: RealtimePayload): Promise<void> {
+  // expo-sqlite raw client doesn't exist on web — skip local DB writes
+  if (Platform.OS === 'web') return;
+
   try {
     if (payload.eventType === 'DELETE') {
       const id = payload.old?.id as string | undefined;
@@ -38,7 +51,7 @@ async function applyChange(table: string, payload: RealtimePayload): Promise<voi
     const row = payload.new;
     if (!row?.id) return;
 
-    const cols = Object.keys(row);
+    const cols = Object.keys(row).map(safeCol);
     if (cols.length === 0) return;
 
     const placeholders = cols.map(() => '?').join(', ');

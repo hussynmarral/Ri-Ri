@@ -4,35 +4,44 @@ import { processSyncQueue, bootstrapSync } from './sync/syncEngine';
 import { seedDefaultTemplates } from './scheduler/seedTemplates';
 import { requestNotificationPermissions } from './notifications/permissions';
 
-let _bootstrapped = false;
+let _infraReady = false;
+// Updated each time bootstrapApp is called with a userId so the reconnect
+// handler always fires with the most-recently-authenticated user.
+let _currentUserId: string | undefined;
 
 export async function bootstrapApp(userId?: string) {
-  if (_bootstrapped) return;
-  _bootstrapped = true;
+  // Track the latest known user for reconnect syncs
+  if (userId) _currentUserId = userId;
 
-  // 1. Ensure local DB tables exist
-  await runLocalMigrations();
+  // ─── One-time infrastructure setup ──────────────────────────────────────
+  if (!_infraReady) {
+    _infraReady = true;
 
-  // 2. Start network monitor
-  await initNetworkMonitor();
+    // 1. Ensure local DB tables exist
+    await runLocalMigrations();
 
-  // 3. Request notification permissions (non-blocking)
-  requestNotificationPermissions().catch(() => {});
+    // 2. Start network monitor
+    await initNetworkMonitor();
 
-  // 4. Seed default templates (no-op if already seeded)
-  if (userId) {
-    await seedDefaultTemplates(userId).catch(() => {});
+    // 3. Request notification permissions (non-blocking)
+    requestNotificationPermissions().catch(() => {});
+
+    // 4. Auto-sync whenever we come back online — reads current user lazily
+    onNetworkChange(async (online) => {
+      if (online && _currentUserId) {
+        await processSyncQueue().catch(() => {});
+      }
+    });
   }
 
-  // 5. If online and authenticated, sync
-  if (userId && getIsOnline()) {
+  // ─── Per-user setup (runs every time a userId is provided) ───────────────
+  if (!userId) return;
+
+  // 5. Seed default templates (no-op if already seeded)
+  await seedDefaultTemplates(userId).catch(() => {});
+
+  // 6. If online, push pending queue then pull remote changes
+  if (getIsOnline()) {
     await bootstrapSync(userId).catch(() => {});
   }
-
-  // 6. Auto-sync whenever we come back online
-  onNetworkChange(async (online) => {
-    if (online && userId) {
-      await processSyncQueue().catch(() => {});
-    }
-  });
 }

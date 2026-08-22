@@ -1,9 +1,11 @@
+import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import type { ScheduleBlock } from '@/types';
 
 const REMINDER_MINUTES_BEFORE = 5;
 
 export async function scheduleBlockReminders(blocks: ScheduleBlock[]): Promise<void> {
+  if (Platform.OS === 'web') return;
   const now = Date.now();
 
   for (const block of blocks) {
@@ -31,5 +33,6 @@ export async function scheduleBlockReminders(blocks: ScheduleBlock[]): Promise<v
 }
 
 export async function cancelBlockReminder(blockId: string): Promise<void> {
+  if (Platform.OS === 'web') return;
   await Notifications.cancelScheduledNotificationAsync(`block_${blockId}`);
 }

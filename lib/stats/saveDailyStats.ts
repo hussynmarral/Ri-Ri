@@ -1,5 +1,5 @@
 import * as Crypto from 'expo-crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, like } from 'drizzle-orm';
 
 import { db } from '@/lib/db/client';
 import { dailyStats, habitLogs, scheduleInstances, waterLogs, workoutSessions } from '@/lib/db/schema';
@@ -42,25 +42,24 @@ interface StatsRow {
 export async function saveDailyStats(userId: string, date: string): Promise<void> {
   const now = new Date().toISOString();
 
-  const [blockRows, allWaterRows, habitRows, allWorkoutRows] = await Promise.all([
+  // Filter all queries to the specific date in SQL — never load the full history
+  const [blockRows, todayWaterRows, habitRows, workoutRows] = await Promise.all([
     db.select().from(scheduleInstances)
       .where(and(eq(scheduleInstances.userId, userId), eq(scheduleInstances.instanceDate, date))),
-    db.select().from(waterLogs).where(eq(waterLogs.userId, userId)),
+    db.select().from(waterLogs)
+      .where(and(eq(waterLogs.userId, userId), like(waterLogs.loggedAt, `${date}%`))),
     db.select().from(habitLogs)
       .where(and(eq(habitLogs.userId, userId), eq(habitLogs.logDate, date))),
-    db.select().from(workoutSessions).where(eq(workoutSessions.userId, userId)),
+    db.select().from(workoutSessions)
+      .where(and(eq(workoutSessions.userId, userId), eq(workoutSessions.sessionDate, date))),
   ]);
 
   const summary = computeDailySummary(blockRows.map(rowToBlock));
 
-  const waterMl = allWaterRows
-    .filter((r) => r.loggedAt.startsWith(date))
-    .reduce((acc, r) => acc + r.amountMl, 0);
+  const waterMl = todayWaterRows.reduce((acc, r) => acc + r.amountMl, 0);
 
   const habitMap: Record<string, boolean> = {};
   for (const r of habitRows) habitMap[r.habitKey] = !!r.completed;
-
-  const todayWorkout = allWorkoutRows.find((r) => r.sessionDate === date);
 
   const row: StatsRow = {
     userId,
@@ -75,7 +74,7 @@ export async function saveDailyStats(userId: string, date: string): Promise<void
     readingCompleted: !!habitMap['reading'],
     englishCompleted: !!habitMap['english'],
     turkishCompleted: !!habitMap['turkish'],
-    workoutCompleted: todayWorkout?.completed ?? false,
+    workoutCompleted: !!(workoutRows[0]?.completed),
     disciplineScore: summary.disciplineScore,
     updatedAt: now,
   };
