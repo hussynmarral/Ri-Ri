@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -7,8 +7,12 @@ import { BlockCard } from '@/components/schedule/BlockCard';
 import { CurrentBlock } from '@/components/schedule/CurrentBlock';
 import { computeDailySummary, todayDateISO } from '@/lib/scheduler/engine';
 import { saveDailyStats } from '@/lib/stats/saveDailyStats';
+import { processSyncQueue } from '@/lib/sync/syncEngine';
+import { getIsOnline } from '@/lib/sync/networkState';
 import { useAuthStore } from '@/stores/authStore';
 import { useScheduleStore } from '@/stores/scheduleStore';
+import { useWaterStore } from '@/stores/waterStore';
+import { useHabitStore } from '@/stores/habitStore';
 
 function formatDate(iso: string) {
   return new Date(`${iso}T12:00:00`).toLocaleDateString('en-US', {
@@ -22,8 +26,11 @@ export default function TodayScreen() {
   const scheme = useColorScheme();
   const colors = Colors[scheme ?? 'light'];
   const user = useAuthStore((s) => s.user);
-  const { todayBlocks, currentBlock, nextBlock, isLoading, load, startBlock, completeBlock, skipBlock, refreshCurrent } =
-    useScheduleStore();
+  const {
+    todayBlocks, currentBlock, nextBlock, isLoading,
+    load, startBlock, completeBlock, skipBlock, refreshCurrent,
+  } = useScheduleStore();
+  const [refreshing, setRefreshing] = useState(false);
 
   const date = todayDateISO();
 
@@ -36,9 +43,24 @@ export default function TodayScreen() {
     return () => clearInterval(id);
   }, []);
 
+  const onRefresh = useCallback(async () => {
+    if (!user) return;
+    setRefreshing(true);
+    try {
+      // Push pending local changes, then reload stores for today
+      if (getIsOnline()) await processSyncQueue().catch(() => {});
+      await Promise.all([
+        load(user.id, date),
+        useWaterStore.getState().load(user.id, date),
+        useHabitStore.getState().load(user.id, date),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [user?.id, date]);
+
   const summary = computeDailySummary(todayBlocks);
 
-  // Auto-save daily stats when the review block is completed
   async function handleComplete(id: string) {
     await completeBlock(id);
     const block = todayBlocks.find((b) => b.id === id);
@@ -48,7 +70,6 @@ export default function TodayScreen() {
   }
 
   const shownBlock = currentBlock ?? nextBlock;
-
   const listBlocks = todayBlocks.filter((b) => b.id !== shownBlock?.id);
 
   function header() {
@@ -69,7 +90,11 @@ export default function TodayScreen() {
           <View style={[s.statsRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Stat label="Done" value={`${summary.totalCompleted}/${summary.totalScheduled}`} color={colors.success} />
             <Stat label="Skipped" value={String(summary.totalSkipped)} color={colors.danger} />
-            <Stat label="Avg late" value={summary.avgLatenessMinutes > 0 ? `${summary.avgLatenessMinutes}m` : 'On time'} color={colors.warning} />
+            <Stat
+              label="Avg late"
+              value={summary.avgLatenessMinutes > 0 ? `${summary.avgLatenessMinutes}m` : 'On time'}
+              color={colors.warning}
+            />
           </View>
         )}
 
@@ -89,7 +114,7 @@ export default function TodayScreen() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading && todayBlocks.length === 0) {
     return (
       <View style={[s.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.primary} />
@@ -97,7 +122,7 @@ export default function TodayScreen() {
     );
   }
 
-  if (todayBlocks.length === 0) {
+  if (!isLoading && todayBlocks.length === 0) {
     return (
       <View style={[s.center, { backgroundColor: colors.background }]}>
         <Text style={[s.empty, { color: colors.muted }]}>No schedule for today</Text>
@@ -117,6 +142,14 @@ export default function TodayScreen() {
         ListHeaderComponent={header}
         contentContainerStyle={s.list}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       />
     </View>
   );
@@ -136,23 +169,25 @@ const s = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16, paddingBottom: 32 },
   headerWrap: { marginBottom: 4 },
-  dateRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
+  dateRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'flex-start', marginBottom: 16,
+  },
   dateLabel: { fontSize: 13, marginBottom: 2 },
   dateText: { fontSize: 20, fontWeight: '700' },
   scoreBadge: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8, alignItems: 'center' },
   scoreNum: { color: '#fff', fontSize: 22, fontWeight: '800' },
   scoreLbl: { color: 'rgba(255,255,255,0.8)', fontSize: 10, marginTop: -2 },
   statsRow: {
-    flexDirection: 'row',
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 16,
-    padding: 14,
-    justifyContent: 'space-around',
+    flexDirection: 'row', borderRadius: 12, borderWidth: 1,
+    marginBottom: 16, padding: 14, justifyContent: 'space-around',
   },
   stat: { alignItems: 'center' },
   statValue: { fontSize: 16, fontWeight: '700' },
   statLabel: { fontSize: 11, marginTop: 2 },
-  sectionLabel: { fontSize: 13, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 10 },
+  sectionLabel: {
+    fontSize: 13, fontWeight: '600', letterSpacing: 0.5,
+    textTransform: 'uppercase', marginBottom: 10,
+  },
   empty: { fontSize: 16 },
 });

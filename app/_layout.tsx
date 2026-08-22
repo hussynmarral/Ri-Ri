@@ -9,6 +9,7 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useAppInit } from '@/hooks/useAppInit';
 import { useNotificationScheduler } from '@/hooks/useNotificationScheduler';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import {
   configureNotificationHandler,
   addNotificationResponseListener,
@@ -48,6 +49,7 @@ function RootLayoutNav() {
   const segments = useSegments();
 
   useNotificationScheduler();
+  useRealtimeSync();
 
   useEffect(() => {
     // Navigate to Today tab when a block reminder is tapped
