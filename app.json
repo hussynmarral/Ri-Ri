@@ -74,8 +74,10 @@
     },
     "extra": {
       "eas": {
-        "projectId": ""
-      }
-    }
+        "projectId": "58f18068-66fd-4e19-bad3-6e7e17223514"
+      },
+      "router": {}
+    },
+    "owner": "ri-ris-team"
   }
 }

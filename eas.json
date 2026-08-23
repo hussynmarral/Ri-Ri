@@ -24,7 +24,7 @@
         "buildType": "apk"
       },
       "ios": {
-        "distribution": "ad-hoc"
+        "distribution": "internal"
       }
     },
     "production": {
@@ -44,9 +44,7 @@
         "track": "internal"
       },
       "ios": {
-        "appleId": "arslanj0@gmail.com",
-        "ascAppId": "",
-        "appleTeamId": ""
+        "appleId": "arslanj0@gmail.com"
       }
     }
   }
