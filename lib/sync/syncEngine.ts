@@ -109,8 +109,7 @@ export async function pullRemoteTable(
 
     const stmt =
       `INSERT INTO ${tableName} (${cols.join(', ')}) VALUES (${placeholders}) ` +
-      `ON CONFLICT(id) DO UPDATE SET ${setClauses} ` +
-      `WHERE excluded.updated_at > ${tableName}.updated_at`;
+      `ON CONFLICT(id) DO UPDATE SET ${setClauses}`;
 
     await (db as any).$client.execAsync(stmt, cols.map((c) => (row as Record<string, unknown>)[c]));
   }

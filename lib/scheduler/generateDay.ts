@@ -63,7 +63,9 @@ export async function generateDayInstances(
 
   // Generate from templates
   for (const t of templates) {
-    const dow: number[] = JSON.parse(t.daysOfWeek);
+    let dow: number[];
+    try { dow = JSON.parse(t.daysOfWeek); } catch { continue; }
+    if (!Array.isArray(dow)) continue;
     if (!dow.includes(dayOfWeek)) continue;
     if (cancelledTemplateIds.has(t.id)) continue;
 
@@ -128,26 +130,31 @@ export async function generateDayInstances(
   // Sort by scheduled start time
   blocks.sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart));
 
-  // Persist to local SQLite + sync queue
-  for (const b of blocks) {
-    await db.insert(scheduleInstances).values({
-      id: b.id,
-      userId: b.userId,
-      templateId: b.templateId ?? null,
-      overrideId: b.overrideId ?? null,
-      instanceDate: b.instanceDate,
-      category: b.category,
-      title: b.title,
-      scheduledStart: b.scheduledStart,
-      scheduledEnd: b.scheduledEnd,
-      status: 'pending',
-      isFlexWindow: b.isFlexWindow,
-      latenessMinutes: 0,
-      completionPercent: 0,
-      createdAt: now,
-      updatedAt: now,
-    });
+  // Persist to local SQLite in a single transaction (all or nothing)
+  await db.transaction(async (tx: any) => {
+    for (const b of blocks) {
+      await tx.insert(scheduleInstances).values({
+        id: b.id,
+        userId: b.userId,
+        templateId: b.templateId ?? null,
+        overrideId: b.overrideId ?? null,
+        instanceDate: b.instanceDate,
+        category: b.category,
+        title: b.title,
+        scheduledStart: b.scheduledStart,
+        scheduledEnd: b.scheduledEnd,
+        status: 'pending',
+        isFlexWindow: b.isFlexWindow,
+        latenessMinutes: 0,
+        completionPercent: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  });
 
+  // Enqueue sync changes after successful DB write
+  for (const b of blocks) {
     await enqueueChange('schedule_instances', 'insert', b.id, {
       id: b.id,
       user_id: b.userId,

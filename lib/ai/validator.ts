@@ -215,6 +215,8 @@ export async function validateAIAction(
         return await validateDeleteRecurring(action.payload);
       case 'bulk_reschedule':
         return await validateBulkReschedule(action.payload, userId, date);
+      case 'remember':
+        return { valid: true };
       default:
         return { valid: false, reason: `Unknown action type: ${action.type}` };
     }

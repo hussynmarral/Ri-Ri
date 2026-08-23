@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { db } from '@/lib/db/client';
 import { waterLogs } from '@/lib/db/schema';
-import { eq, gte, sum } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { enqueueChange } from '@/lib/sync/syncQueue';
 import * as Crypto from 'expo-crypto';
 
@@ -12,34 +12,73 @@ export interface WaterLog {
   amountMl: number;
 }
 
+// ml per day considered a "good" day (goal for streak counting)
+const STREAK_GOAL_ML = 2000;
+
+function isoDate(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+function subtractDays(dateStr: string, n: number) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() - n);
+  return isoDate(d);
+}
+
 interface WaterState {
   todayLogs: WaterLog[];
   todayTotalMl: number;
+  streak: number;
+  weekHistory: { date: string; totalMl: number }[];
   isLoading: boolean;
   load: (userId: string, date: string) => Promise<void>;
   addLog: (userId: string, amountMl: number) => Promise<void>;
   deleteLog: (id: string) => Promise<void>;
 }
 
-function todayStart(date: string) {
-  return `${date}T00:00:00.000Z`;
-}
-
 export const useWaterStore = create<WaterState>((set, get) => ({
   todayLogs: [],
   todayTotalMl: 0,
+  streak: 0,
+  weekHistory: [],
   isLoading: false,
 
   load: async (userId, date) => {
     set({ isLoading: true });
-    const rows = await db
-      .select()
-      .from(waterLogs)
-      .where(eq(waterLogs.userId, userId));
+    const rows = await db.select().from(waterLogs).where(eq(waterLogs.userId, userId));
 
-    const dayLogs = rows.filter((r) => r.loggedAt.startsWith(date));
+    function toLocalDate(iso: string) {
+      const d = new Date(iso);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    const dayLogs = rows.filter((r) => toLocalDate(r.loggedAt) === date);
     const total = dayLogs.reduce((acc, r) => acc + r.amountMl, 0);
-    set({ todayLogs: dayLogs as WaterLog[], todayTotalMl: total, isLoading: false });
+
+    // Build per-date totals from all rows (using local date, not UTC)
+    const byDate: Record<string, number> = {};
+    for (const r of rows) {
+      const d = toLocalDate(r.loggedAt);
+      byDate[d] = (byDate[d] ?? 0) + r.amountMl;
+    }
+
+    // Streak: count consecutive days backwards from today where goal was met
+    let streak = 0;
+    let cursor = date;
+    // today counts if we've already met goal
+    while (true) {
+      const ml = byDate[cursor] ?? 0;
+      if (ml < STREAK_GOAL_ML) break;
+      streak++;
+      cursor = subtractDays(cursor, 1);
+    }
+
+    // Week history: last 7 days
+    const weekHistory = Array.from({ length: 7 }, (_, i) => {
+      const d = subtractDays(date, 6 - i);
+      return { date: d, totalMl: byDate[d] ?? 0 };
+    });
+
+    set({ todayLogs: dayLogs as WaterLog[], todayTotalMl: total, streak, weekHistory, isLoading: false });
   },
 
   addLog: async (userId, amountMl) => {

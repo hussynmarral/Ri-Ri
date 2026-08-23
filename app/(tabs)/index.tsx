@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, FlatList, RefreshControl,
-  StyleSheet, Text, TouchableOpacity, View,
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 
 import Colors from '@/constants/Colors';
@@ -21,16 +26,17 @@ import { useHabitStore } from '@/stores/habitStore';
 import { useAIStore } from '@/stores/aiStore';
 import type { AIContext } from '@/lib/ai/client';
 
-function formatDate(iso: string) {
-  return new Date(`${iso}T12:00:00`).toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric',
-  });
+function formatDateDisplay(iso: string) {
+  const d = new Date(`${iso}T12:00:00`);
+  const weekday = d.toLocaleDateString('en-US', { weekday: 'long' });
+  const rest    = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+  return { weekday, rest };
 }
 
 export default function TodayScreen() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme ?? 'light'];
-  const user = useAuthStore((s) => s.user);
+  const scheme = useColorScheme() ?? 'dark';
+  const colors = Colors[scheme];
+  const user   = useAuthStore((s) => s.user);
 
   const {
     todayBlocks, currentBlock, nextBlock, isLoading,
@@ -38,7 +44,7 @@ export default function TodayScreen() {
   } = useScheduleStore();
 
   const { todayTotalMl } = useWaterStore();
-  const { todayHabits } = useHabitStore();
+  const { todayHabits }  = useHabitStore();
 
   const {
     isLoading: aiLoading, pendingActions, actionValidations, aiResponse, error: aiError,
@@ -47,6 +53,7 @@ export default function TodayScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const date = todayDateISO();
+  const { weekday, rest } = formatDateDisplay(date);
 
   useEffect(() => {
     if (user) load(user.id, date);
@@ -72,7 +79,10 @@ export default function TodayScreen() {
     }
   }, [user?.id, date]);
 
-  const summary = computeDailySummary(todayBlocks);
+  const summary    = computeDailySummary(todayBlocks);
+  const shownBlock = currentBlock ?? nextBlock;
+  const listBlocks = todayBlocks.filter((b) => b.id !== shownBlock?.id);
+  const showAISheet = pendingActions.length > 0 || (!!aiResponse && !aiLoading);
 
   async function handleComplete(id: string) {
     await completeBlock(id);
@@ -86,57 +96,46 @@ export default function TodayScreen() {
     const completedHabits = Object.entries(todayHabits)
       .filter(([, log]) => log?.completed)
       .map(([key]) => key);
-
     return {
       date,
       blocks: todayBlocks.map((b) => ({
-        id: b.id,
-        title: b.title,
-        category: b.category,
-        scheduledStart: b.scheduledStart,
-        scheduledEnd: b.scheduledEnd,
-        status: b.status,
+        id: b.id, title: b.title, category: b.category,
+        scheduledStart: b.scheduledStart, scheduledEnd: b.scheduledEnd, status: b.status,
       })),
       waterMl: todayTotalMl,
       habitsCompleted: completedHabits,
     };
   }
 
-  function handleAISend(message: string) {
-    if (!user) return;
-    sendCommand(message, buildAIContext(), user.id);
-  }
-
-  const shownBlock = currentBlock ?? nextBlock;
-  const listBlocks = todayBlocks.filter((b) => b.id !== shownBlock?.id);
-  const showAISheet = pendingActions.length > 0 || (!!aiResponse && !aiLoading);
-
   function header() {
     return (
       <View style={s.headerWrap}>
+        {/* Date + score */}
         <View style={s.dateRow}>
-          <View>
-            <Text style={[s.dateLabel, { color: colors.muted }]}>Today</Text>
-            <Text style={[s.dateText, { color: colors.text }]}>{formatDate(date)}</Text>
+          <View style={s.dateBlock}>
+            <Text style={[s.weekday, { color: colors.text }]}>{weekday}</Text>
+            <Text style={[s.dateRest, { color: colors.muted }]}>{rest}</Text>
           </View>
-          <View style={[s.scoreBadge, { backgroundColor: colors.primary }]}>
-            <Text style={s.scoreNum}>{summary.disciplineScore}</Text>
-            <Text style={s.scoreLbl}>score</Text>
-          </View>
+          {todayBlocks.length > 0 && (
+            <View style={[s.scorePill, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[s.scoreNum, { color: colors.primary }]}>{summary.disciplineScore}</Text>
+              <Text style={[s.scoreLbl, { color: colors.muted }]}>score</Text>
+            </View>
+          )}
         </View>
 
+        {/* Stats row — only when there's data */}
         {todayBlocks.length > 0 && (
-          <View style={[s.statsRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Stat label="Done" value={`${summary.totalCompleted}/${summary.totalScheduled}`} color={colors.success} />
-            <Stat label="Skipped" value={String(summary.totalSkipped)} color={colors.danger} />
-            <Stat
-              label="Avg late"
-              value={summary.avgLatenessMinutes > 0 ? `${summary.avgLatenessMinutes}m` : 'On time'}
-              color={colors.warning}
-            />
+          <View style={[s.statsRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <StatPill label="Done" value={`${summary.totalCompleted}/${summary.totalScheduled}`} color={colors.success} />
+            <View style={[s.statDivider, { backgroundColor: colors.border }]} />
+            <StatPill label="Skipped" value={String(summary.totalSkipped)} color={colors.danger} />
+            <View style={[s.statDivider, { backgroundColor: colors.border }]} />
+            <StatPill label="Avg late" value={summary.avgLatenessMinutes > 0 ? `${summary.avgLatenessMinutes}m` : '—'} color={colors.warning} />
           </View>
         )}
 
+        {/* Current / next block */}
         {shownBlock && (
           <CurrentBlock
             block={shownBlock}
@@ -147,7 +146,7 @@ export default function TodayScreen() {
         )}
 
         {listBlocks.length > 0 && (
-          <Text style={[s.sectionLabel, { color: colors.muted }]}>Schedule</Text>
+          <Text style={[s.sectionLabel, { color: colors.placeholder }]}>Schedule</Text>
         )}
       </View>
     );
@@ -164,10 +163,13 @@ export default function TodayScreen() {
   if (!isLoading && todayBlocks.length === 0) {
     return (
       <View style={[s.center, { backgroundColor: colors.background }]}>
-        <Text style={[s.empty, { color: colors.muted }]}>No schedule for today</Text>
-        <TouchableOpacity onPress={() => user && load(user.id, date)}>
-          <Text style={{ color: colors.primary, marginTop: 8 }}>Refresh</Text>
-        </TouchableOpacity>
+        <Text style={[s.emptyTitle, { color: colors.text }]}>No schedule yet</Text>
+        <Text style={[s.emptyBody, { color: colors.muted }]}>
+          Pull down to refresh or ask the AI to build your day.
+        </Text>
+        <Pressable onPress={() => user && load(user.id, date)} style={({ pressed }) => [s.retryBtn, { borderColor: colors.borderStrong, opacity: pressed ? 0.6 : 1 }]}>
+          <Text style={[s.retryText, { color: colors.textSecondary }]}>Refresh</Text>
+        </Pressable>
       </View>
     );
   }
@@ -191,7 +193,7 @@ export default function TodayScreen() {
         }
       />
 
-      <AICommandBar onSend={handleAISend} isLoading={aiLoading} />
+      <AICommandBar onSend={(msg) => user && sendCommand(msg, buildAIContext(), user.id)} isLoading={aiLoading} />
 
       <AIActionSheet
         visible={showAISheet}
@@ -199,49 +201,66 @@ export default function TodayScreen() {
         actions={pendingActions}
         actionValidations={actionValidations}
         isLoading={aiLoading}
-        onConfirm={() => {
-          if (!user) return;
-          confirmActions(user.id, () => load(user.id, date));
-        }}
+        onConfirm={() => { if (!user) return; confirmActions(user.id, () => load(user.id, date)); }}
         onDismiss={dismissActions}
       />
     </View>
   );
 }
 
-function Stat({ label, value, color }: { label: string; value: string; color: string }) {
+function StatPill({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <View style={s.stat}>
       <Text style={[s.statValue, { color }]}>{value}</Text>
-      <Text style={[s.statLabel, { color: '#9CA3AF' }]}>{label}</Text>
+      <Text style={[s.statLabel, { color: '#52525B' }]}>{label}</Text>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  list: { padding: 16, paddingBottom: 8 },
-  headerWrap: { marginBottom: 4 },
-  dateRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'flex-start', marginBottom: 16,
+  root:    { flex: 1 },
+  center:  { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
+  list:    { padding: 20, paddingBottom: 16 },
+
+  headerWrap:  { marginBottom: 6 },
+  dateRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 },
+  dateBlock:   {},
+  weekday:     { fontSize: 28, fontWeight: '700', letterSpacing: -0.8, lineHeight: 32 },
+  dateRest:    { fontSize: 15, fontWeight: '400', letterSpacing: 0, marginTop: 2 },
+
+  scorePill: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
   },
-  dateLabel: { fontSize: 13, marginBottom: 2 },
-  dateText: { fontSize: 20, fontWeight: '700' },
-  scoreBadge: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8, alignItems: 'center' },
-  scoreNum: { color: '#fff', fontSize: 22, fontWeight: '800' },
-  scoreLbl: { color: 'rgba(255,255,255,0.8)', fontSize: 10, marginTop: -2 },
+  scoreNum: { fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
+  scoreLbl: { fontSize: 10, fontWeight: '500', letterSpacing: 0.4, marginTop: 1 },
+
   statsRow: {
-    flexDirection: 'row', borderRadius: 12, borderWidth: 1,
-    marginBottom: 16, padding: 14, justifyContent: 'space-around',
+    flexDirection: 'row',
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
   },
-  stat: { alignItems: 'center' },
-  statValue: { fontSize: 16, fontWeight: '700' },
-  statLabel: { fontSize: 11, marginTop: 2 },
+  stat:       { flex: 1, alignItems: 'center' },
+  statValue:  { fontSize: 16, fontWeight: '600', letterSpacing: -0.3 },
+  statLabel:  { fontSize: 11, fontWeight: '400', marginTop: 2, letterSpacing: 0.2 },
+  statDivider: { width: StyleSheet.hairlineWidth, height: 28 },
+
   sectionLabel: {
-    fontSize: 13, fontWeight: '600', letterSpacing: 0.5,
-    textTransform: 'uppercase', marginBottom: 10,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 10,
   },
-  empty: { fontSize: 16 },
+
+  emptyTitle: { fontSize: 20, fontWeight: '600', letterSpacing: -0.4, marginBottom: 8 },
+  emptyBody:  { fontSize: 15, fontWeight: '400', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  retryBtn:   { borderWidth: 1, borderRadius: 12, paddingHorizontal: 22, paddingVertical: 11 },
+  retryText:  { fontSize: 15, fontWeight: '500' },
 });

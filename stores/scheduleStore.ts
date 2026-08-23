@@ -5,7 +5,9 @@ import { and, eq } from 'drizzle-orm';
 import { enqueueChange } from '@/lib/sync/syncQueue';
 import { generateDayInstances } from '@/lib/scheduler/generateDay';
 import { isCurrentBlock, isUpcoming } from '@/lib/scheduler/engine';
+import { addAdHocBlock } from '@/lib/scheduler/addBlock';
 import type { ScheduleBlock, CompletionStatus } from '@/types';
+import type { AddBlockParams } from '@/lib/scheduler/addBlock';
 
 interface ScheduleState {
   todayBlocks: ScheduleBlock[];
@@ -13,6 +15,7 @@ interface ScheduleState {
   currentBlock: ScheduleBlock | null;
   nextBlock: ScheduleBlock | null;
   load: (userId: string, date: string) => Promise<void>;
+  addBlock: (params: AddBlockParams) => Promise<void>;
   startBlock: (id: string) => Promise<void>;
   completeBlock: (id: string, completionPercent?: number) => Promise<void>;
   skipBlock: (id: string) => Promise<void>;
@@ -38,6 +41,12 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     const blocks = await generateDayInstances(userId, date);
     const { current, next } = findCurrentAndNext(blocks);
     set({ todayBlocks: blocks, currentBlock: current, nextBlock: next, isLoading: false });
+  },
+
+  addBlock: async (params) => {
+    await addAdHocBlock(params);
+    // Reload so the new block appears (critical on web: re-queries Supabase)
+    await get().load(params.userId, params.instanceDate);
   },
 
   startBlock: async (id) => {

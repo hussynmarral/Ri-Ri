@@ -1,35 +1,14 @@
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useRef } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import Colors from '@/constants/Colors';
+import Colors, { CATEGORY_COLOR, CATEGORY_TINT } from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import {
   computeRemainingTime,
   formatBlockTime,
   formatTimeRemaining,
 } from '@/lib/scheduler/engine';
-import type { BlockCategory, ScheduleBlock } from '@/types';
-
-const CATEGORY_COLOR: Record<BlockCategory, string> = {
-  shopify: '#6366F1',
-  agency: '#8B5CF6',
-  office: '#3B82F6',
-  gym: '#F59E0B',
-  language: '#10B981',
-  shower: '#64748B',
-  skincare: '#EC4899',
-  meal: '#F97316',
-  reading: '#14B8A6',
-  content: '#DB2777',
-  review: '#0EA5E9',
-  sleep: '#7C3AED',
-  water: '#38BDF8',
-  supplements: '#84CC16',
-  flex: '#94A3B8',
-  movement: '#FB923C',
-  weekend_run: '#EF4444',
-  weekly_reset: '#06B6D4',
-  other: '#6B7280',
-};
+import type { ScheduleBlock } from '@/types';
 
 interface Props {
   block: ScheduleBlock;
@@ -39,81 +18,178 @@ interface Props {
 }
 
 export function CurrentBlock({ block, onStart, onComplete, onSkip }: Props) {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme ?? 'light'];
-  const accent = CATEGORY_COLOR[block.category] ?? '#6366F1';
-  const remaining = computeRemainingTime(block);
-  const isPending = block.status === 'pending';
-  const isActive = block.status === 'in_progress';
+  const scheme = useColorScheme() ?? 'dark';
+  const colors = Colors[scheme];
+  const accent = CATEGORY_COLOR[block.category] ?? '#7B7CF8';
+  const tint   = CATEGORY_TINT[block.category]  ?? 'rgba(123,124,248,0.08)';
+  const remaining  = computeRemainingTime(block);
+  const isPending  = block.status === 'pending';
+  const isActive   = block.status === 'in_progress';
+
+  const label = isActive ? 'NOW' : 'UP NEXT';
 
   return (
-    <View style={[s.card, { backgroundColor: colors.card, borderColor: accent }]}>
-      <View style={[s.topBar, { backgroundColor: accent }]}>
-        <Text style={s.topLabel}>{isActive ? 'Now' : 'Up next'}</Text>
+    <View style={[s.card, { backgroundColor: tint, borderColor: accent + '28' }]}>
+      {/* Header strip */}
+      <View style={s.header}>
+        <View style={[s.dot, { backgroundColor: isActive ? accent : colors.muted }]} />
+        <Text style={[s.label, { color: isActive ? accent : colors.muted }]}>{label}</Text>
         {isActive && remaining > 0 && (
-          <Text style={s.remaining}>{formatTimeRemaining(remaining)} left</Text>
+          <Text style={[s.remaining, { color: colors.textSecondary }]}>
+            {formatTimeRemaining(remaining)} left
+          </Text>
         )}
       </View>
 
-      <View style={s.body}>
-        <Text style={[s.title, { color: colors.text }]} numberOfLines={2}>
-          {block.title}
-        </Text>
-        <Text style={[s.time, { color: colors.muted }]}>
-          {formatBlockTime(block.scheduledStart)} – {formatBlockTime(block.scheduledEnd)}
-        </Text>
-        {block.latenessMinutes > 0 && (
-          <Text style={[s.late, { color: colors.warning }]}>
-            Started {block.latenessMinutes}m late
-          </Text>
-        )}
+      {/* Title */}
+      <Text style={[s.title, { color: colors.text }]} numberOfLines={2}>
+        {block.title}
+      </Text>
 
-        <View style={s.actions}>
-          {isPending && (
-            <TouchableOpacity style={[s.btn, { backgroundColor: accent }]} onPress={onStart}>
-              <Text style={s.btnText}>Start</Text>
-            </TouchableOpacity>
-          )}
-          {isActive && (
-            <>
-              <TouchableOpacity
-                style={[s.btn, { backgroundColor: colors.success, flex: 1 }]}
-                onPress={onComplete}
-              >
-                <Text style={s.btnText}>Complete</Text>
-              </TouchableOpacity>
-              <View style={{ width: 10 }} />
-              <TouchableOpacity
-                style={[s.btn, s.btnOutline, { borderColor: colors.border, flex: 0.5 }]}
-                onPress={onSkip}
-              >
-                <Text style={[s.btnText, { color: colors.muted }]}>Skip</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
+      {/* Time */}
+      <Text style={[s.time, { color: colors.muted }]}>
+        {formatBlockTime(block.scheduledStart)} – {formatBlockTime(block.scheduledEnd)}
+      </Text>
+
+      {block.latenessMinutes > 0 && (
+        <Text style={[s.late, { color: colors.warning }]}>
+          {block.latenessMinutes}m behind schedule
+        </Text>
+      )}
+
+      {/* Actions */}
+      <View style={s.actions}>
+        {isPending && (
+          <PressBtn
+            label="Start"
+            bgColor={accent}
+            textColor="#fff"
+            onPress={onStart}
+            flex={1}
+          />
+        )}
+        {isActive && (
+          <>
+            <PressBtn
+              label="Complete"
+              bgColor={colors.success}
+              textColor="#fff"
+              onPress={onComplete}
+              flex={1}
+            />
+            <View style={{ width: 8 }} />
+            <PressBtn
+              label="Skip"
+              bgColor="transparent"
+              textColor={colors.muted}
+              borderColor={colors.borderStrong}
+              onPress={onSkip}
+              flex={0.45}
+            />
+          </>
+        )}
       </View>
     </View>
   );
 }
 
+function PressBtn({
+  label,
+  bgColor,
+  textColor,
+  borderColor,
+  onPress,
+  flex,
+}: {
+  label: string;
+  bgColor: string;
+  textColor: string;
+  borderColor?: string;
+  onPress: () => void;
+  flex: number;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const press = () => Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 60, bounciness: 4 }).start();
+  const release = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 6 }).start();
+
+  return (
+    <Pressable onPress={onPress} onPressIn={press} onPressOut={release} style={{ flex }}>
+      <Animated.View
+        style={[
+          s.btn,
+          {
+            backgroundColor: bgColor,
+            borderWidth: borderColor ? 1 : 0,
+            borderColor: borderColor,
+            transform: [{ scale }],
+          },
+        ]}
+      >
+        <Text style={[s.btnText, { color: textColor }]}>{label}</Text>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
 const s = StyleSheet.create({
-  card: { borderRadius: 16, borderWidth: 2, overflow: 'hidden', marginBottom: 16 },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+  card: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 20,
+    marginBottom: 16,
   },
-  topLabel: { color: '#fff', fontSize: 12, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
-  remaining: { color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: '600' },
-  body: { padding: 16 },
-  title: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5, marginBottom: 6 },
-  time: { fontSize: 14, marginBottom: 4 },
-  late: { fontSize: 13, marginBottom: 4 },
-  actions: { flexDirection: 'row', marginTop: 16 },
-  btn: { borderRadius: 10, paddingVertical: 12, paddingHorizontal: 20, alignItems: 'center' },
-  btnOutline: { borderWidth: 1.5, backgroundColor: 'transparent' },
-  btnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+    gap: 6,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1.2,
+    flex: 1,
+  },
+  remaining: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: -0.6,
+    lineHeight: 30,
+    marginBottom: 8,
+  },
+  time: {
+    fontSize: 14,
+    fontWeight: '400',
+    letterSpacing: 0.1,
+    marginBottom: 4,
+  },
+  late: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  actions: {
+    flexDirection: 'row',
+    marginTop: 18,
+  },
+  btn: {
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: -0.1,
+  },
 });

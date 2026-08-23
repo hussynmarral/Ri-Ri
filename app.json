@@ -12,7 +12,9 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.hussynmarral.riri",
       "infoPlist": {
-        "NSUserNotificationsUsageDescription": "Ri Ri uses notifications to remind you of upcoming schedule blocks and water intake goals."
+        "NSUserNotificationsUsageDescription": "Ri Ri uses notifications to remind you of upcoming schedule blocks and water intake goals.",
+        "NSSpeechRecognitionUsageDescription": "Ri Ri uses speech recognition to let you talk to the AI assistant hands-free.",
+        "NSMicrophoneUsageDescription": "Ri Ri needs microphone access for voice commands to the AI assistant."
       }
     },
     "android": {
@@ -29,12 +31,13 @@
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.SCHEDULE_EXACT_ALARM",
-        "android.permission.VIBRATE"
+        "android.permission.VIBRATE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png",
       "name": "Ri Ri",
       "shortName": "Ri Ri",
@@ -63,7 +66,8 @@
         }
       ],
       "expo-sqlite",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

@@ -1,9 +1,15 @@
 import { create } from 'zustand';
 import { db } from '@/lib/db/client';
 import { habitLogs } from '@/lib/db/schema';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, gte, inArray } from 'drizzle-orm';
 import { enqueueChange } from '@/lib/sync/syncQueue';
 import * as Crypto from 'expo-crypto';
+
+function subtractDays(dateStr: string, n: number) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+}
 
 export const HABIT_KEYS = [
   'reading',
@@ -30,9 +36,14 @@ type HabitMap = Record<HabitKey, HabitLog | null>;
 // weekHabits[date][habitKey] = completed boolean
 type WeekHabits = Record<string, Partial<Record<HabitKey, boolean>>>;
 
+// Per-habit streak (consecutive days completed)
+export type HabitStreaks = Record<HabitKey, number>;
+
 interface HabitState {
   todayHabits: HabitMap;
   weekHabits: WeekHabits;
+  streaks: HabitStreaks;
+  overallStreak: number;
   isLoading: boolean;
   load: (userId: string, date: string) => Promise<void>;
   loadWeek: (userId: string, dates: string[]) => Promise<void>;
@@ -44,9 +55,15 @@ function emptyMap(): HabitMap {
   return Object.fromEntries(HABIT_KEYS.map((k) => [k, null])) as HabitMap;
 }
 
+function emptyStreaks(): HabitStreaks {
+  return Object.fromEntries(HABIT_KEYS.map((k) => [k, 0])) as HabitStreaks;
+}
+
 export const useHabitStore = create<HabitState>((set, get) => ({
   todayHabits: emptyMap(),
   weekHabits: {},
+  streaks: emptyStreaks(),
+  overallStreak: 0,
   isLoading: false,
 
   loadWeek: async (userId, dates) => {
@@ -69,18 +86,61 @@ export const useHabitStore = create<HabitState>((set, get) => ({
 
   load: async (userId, date) => {
     set({ isLoading: true });
-    const rows = await db
+
+    // Load today
+    const todayRows = await db
       .select()
       .from(habitLogs)
       .where(and(eq(habitLogs.userId, userId), eq(habitLogs.logDate, date)));
 
     const map = emptyMap();
-    for (const r of rows) {
+    for (const r of todayRows) {
       if (HABIT_KEYS.includes(r.habitKey as HabitKey)) {
         map[r.habitKey as HabitKey] = r as HabitLog;
       }
     }
-    set({ todayHabits: map, isLoading: false });
+
+    // Load last 60 days for streak calculation
+    const cutoff = subtractDays(date, 60);
+    const historyRows = await db
+      .select()
+      .from(habitLogs)
+      .where(and(eq(habitLogs.userId, userId), gte(habitLogs.logDate, cutoff)));
+
+    // Build per-habit per-date completion map
+    const history: Record<HabitKey, Set<string>> = Object.fromEntries(
+      HABIT_KEYS.map((k) => [k, new Set<string>()]),
+    ) as Record<HabitKey, Set<string>>;
+
+    for (const r of historyRows) {
+      if (HABIT_KEYS.includes(r.habitKey as HabitKey) && r.completed) {
+        history[r.habitKey as HabitKey].add(r.logDate);
+      }
+    }
+
+    // Per-habit streak: consecutive days back from today
+    const streaks = emptyStreaks();
+    for (const key of HABIT_KEYS) {
+      let streak = 0;
+      let cursor = date;
+      while (history[key].has(cursor)) {
+        streak++;
+        cursor = subtractDays(cursor, 1);
+      }
+      streaks[key] = streak;
+    }
+
+    // Overall streak: days where ALL habits were completed
+    let overallStreak = 0;
+    let cursor = date;
+    for (let i = 0; i < 60; i++) {
+      const allDone = HABIT_KEYS.every((k) => history[k].has(cursor));
+      if (!allDone) break;
+      overallStreak++;
+      cursor = subtractDays(cursor, 1);
+    }
+
+    set({ todayHabits: map, streaks, overallStreak, isLoading: false });
   },
 
   markComplete: async (userId, habitKey, date, value) => {

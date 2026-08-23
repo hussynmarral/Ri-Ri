@@ -1,13 +1,21 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
-import { useFonts } from 'expo-font';
 import { useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
+import {
+  useFonts,
+  Marcellus_400Regular,
+} from '@expo-google-fonts/marcellus';
+import {
+  LibreBaskerville_400Regular,
+  LibreBaskerville_700Bold,
+} from '@expo-google-fonts/libre-baskerville';
+
 import { useColorScheme } from '@/components/useColorScheme';
-import { WebWrapper } from '@/components/web/WebWrapper';
 import { useAppInit } from '@/hooks/useAppInit';
 import { useNotificationScheduler } from '@/hooks/useNotificationScheduler';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
@@ -19,44 +27,45 @@ import { useAuthStore } from '@/stores/authStore';
 
 export { ErrorBoundary } from 'expo-router';
 
-export const unstable_settings = { initialRouteName: '(tabs)' };
+export const unstable_settings = { initialRouteName: '(main)' };
 
 SplashScreen.preventAutoHideAsync();
 configureNotificationHandler();
 
 export default function RootLayout() {
-  const [loaded, error] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
+    Marcellus_400Regular,
+    LibreBaskerville_400Regular,
+    LibreBaskerville_700Bold,
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
   useEffect(() => {
-    if (error) throw error;
-  }, [error]);
+    if (fontError) throw fontError;
+  }, [fontError]);
 
   useEffect(() => {
-    if (loaded) SplashScreen.hideAsync();
-  }, [loaded]);
+    if (fontsLoaded) SplashScreen.hideAsync();
+  }, [fontsLoaded]);
 
-  if (!loaded) return null;
-
+  if (!fontsLoaded) return null;
   return <RootLayoutNav />;
 }
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  const isReady = useAppInit();
-  const user = useAuthStore((s) => s.user);
-  const router = useRouter();
-  const segments = useSegments();
+  const isReady     = useAppInit();
+  const user        = useAuthStore((s) => s.user);
+  const router      = useRouter();
+  const segments    = useSegments();
 
   useNotificationScheduler();
   useRealtimeSync();
 
   useEffect(() => {
-    // Navigate to Today tab when a block reminder is tapped
     const remove = addNotificationResponseListener((data) => {
       if (data.type === 'block_reminder' || data.type === 'water_reminder') {
-        router.replace('/(tabs)');
+        router.replace('/(main)' as any);
       }
     });
     return remove;
@@ -68,34 +77,29 @@ function RootLayoutNav() {
     if (!user && !inAuth) {
       router.replace('/auth');
     } else if (user && inAuth) {
-      router.replace('/(tabs)');
+      router.replace('/(main)' as any);
     }
   }, [isReady, user, segments]);
 
   if (!isReady) {
     return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: colorScheme === 'dark' ? '#0F0F10' : '#F9FAFB',
-        }}
-      >
-        <ActivityIndicator size="large" color="#6366F1" />
-      </View>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#080A0E' }}>
+          <ActivityIndicator size="large" color="#91A4C7" />
+        </View>
+      </GestureHandlerRootView>
     );
   }
 
   return (
-    <WebWrapper>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={colorScheme === 'light' ? DefaultTheme : DarkTheme}>
         <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="auth" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="(main)" options={{ headerShown: false }} />
+          <Stack.Screen name="auth"   options={{ headerShown: false }} />
+          <Stack.Screen name="modal"  options={{ presentation: 'modal' }} />
         </Stack>
       </ThemeProvider>
-    </WebWrapper>
+    </GestureHandlerRootView>
   );
 }

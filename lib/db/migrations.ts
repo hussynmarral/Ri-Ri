@@ -159,6 +159,49 @@ export async function runLocalMigrations() {
   `);
 
   await db.run(sql`
+    CREATE TABLE IF NOT EXISTS ai_memories (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'general',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS ai_action_log (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      action_type TEXT NOT NULL,
+      description TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      reversal_payload TEXT,
+      undone INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    )
+  `);
+
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS workout_sets (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      exercise TEXT NOT NULL,
+      set_number INTEGER NOT NULL,
+      reps INTEGER,
+      weight_kg REAL,
+      created_at TEXT NOT NULL
+    )
+  `);
+
+  // Schema additions (idempotent — alter if column missing)
+  try { await db.run(sql`ALTER TABLE profiles ADD COLUMN username TEXT`); } catch {}
+
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_am_user ON ai_memories(user_id)`);
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_aal_user ON ai_action_log(user_id, created_at)`);
+
+  await db.run(sql`
     CREATE TABLE IF NOT EXISTS sync_queue (
       id TEXT PRIMARY KEY,
       table_name TEXT NOT NULL,
@@ -176,5 +219,7 @@ export async function runLocalMigrations() {
   await db.run(sql`CREATE INDEX IF NOT EXISTS idx_wl_user_logged ON water_logs(user_id, logged_at)`);
   await db.run(sql`CREATE INDEX IF NOT EXISTS idx_hl_user_date ON habit_logs(user_id, log_date)`);
   await db.run(sql`CREATE INDEX IF NOT EXISTS idx_ws_user_date ON workout_sessions(user_id, session_date)`);
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_wsets_session ON workout_sets(session_id)`);
+  await db.run(sql`CREATE INDEX IF NOT EXISTS idx_wsets_user_ex ON workout_sets(user_id, exercise)`);
   await db.run(sql`CREATE INDEX IF NOT EXISTS idx_sq_status ON sync_queue(status, created_at)`);
 }

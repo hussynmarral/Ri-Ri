@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase/client';
 import type { AIAction } from '@/types';
 
 export interface AIBlockContext {
@@ -8,6 +7,8 @@ export interface AIBlockContext {
   scheduledStart: string;
   scheduledEnd: string;
   status: string;
+  templateId?: string | null;
+  isFlexWindow?: boolean;
 }
 
 export interface AIContext {
@@ -22,16 +23,3 @@ export interface AIResponse {
   actions: AIAction[];
 }
 
-export async function sendAICommand(message: string, context: AIContext): Promise<AIResponse> {
-  const { data, error } = await supabase.functions.invoke('ai-command', {
-    body: { message: message.trim(), context },
-  });
-
-  if (error) throw new Error(error.message ?? 'AI request failed');
-  if (!data) throw new Error('Empty response from AI');
-
-  const result = data as AIResponse;
-  if (!Array.isArray(result.actions)) result.actions = [];
-
-  return result;
-}

@@ -158,12 +158,14 @@ export function formatBlockTime(isoString: string): string {
 }
 
 export function todayDateISO(): string {
-  // Routine day: if current time is before 12:00 PM, the "active day" is yesterday
+  // Routine day: noon–noon boundary. Before 12:00 PM local time → yesterday's routine day.
+  // Use local date parts (not toISOString which is UTC) so PKT/any timezone is correct.
   const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
   if (now.getHours() < 12) {
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    return yesterday.toISOString().split('T')[0];
+    const prev = new Date(now);
+    prev.setDate(prev.getDate() - 1);
+    return `${prev.getFullYear()}-${pad(prev.getMonth() + 1)}-${pad(prev.getDate())}`;
   }
-  return now.toISOString().split('T')[0];
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }

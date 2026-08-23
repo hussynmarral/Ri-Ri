@@ -7,6 +7,7 @@ import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
 export const profiles = sqliteTable('profiles', {
   id:          text('id').primaryKey(),
   displayName: text('display_name'),
+  username:    text('username'),
   timezone:    text('timezone').notNull().default('Asia/Karachi'),
   createdAt:   text('created_at').notNull(),
   updatedAt:   text('updated_at').notNull(),
@@ -114,6 +115,17 @@ export const workoutSessions = sqliteTable('workout_sessions', {
   updatedAt:       text('updated_at').notNull(),
 });
 
+export const workoutSets = sqliteTable('workout_sets', {
+  id:         text('id').primaryKey(),
+  sessionId:  text('session_id').notNull(),
+  userId:     text('user_id').notNull(),
+  exercise:   text('exercise').notNull(),
+  setNumber:  integer('set_number').notNull(),
+  reps:       integer('reps'),
+  weightKg:   real('weight_kg'),
+  createdAt:  text('created_at').notNull(),
+});
+
 export const dailyStats = sqliteTable('daily_stats', {
   id:                  text('id').primaryKey(),
   userId:              text('user_id').notNull(),
@@ -132,6 +144,26 @@ export const dailyStats = sqliteTable('daily_stats', {
   disciplineScore:     real('discipline_score').notNull().default(0),
   createdAt:           text('created_at').notNull(),
   updatedAt:           text('updated_at').notNull(),
+});
+
+export const aiMemories = sqliteTable('ai_memories', {
+  id:        text('id').primaryKey(),
+  userId:    text('user_id').notNull(),
+  content:   text('content').notNull(),
+  category:  text('category').notNull().default('general'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const aiActionLog = sqliteTable('ai_action_log', {
+  id:               text('id').primaryKey(),
+  userId:           text('user_id').notNull(),
+  actionType:       text('action_type').notNull(),
+  description:      text('description').notNull(),
+  payload:          text('payload').notNull(),
+  reversalPayload:  text('reversal_payload'),
+  undone:           integer('undone', { mode: 'boolean' }).notNull().default(false),
+  createdAt:        text('created_at').notNull(),
 });
 
 // Sync queue — local only, never pushed to Supabase

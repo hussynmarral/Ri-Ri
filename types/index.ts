@@ -111,7 +111,8 @@ export type AIActionType =
   | 'change_recurring'
   | 'delete_recurring'
   | 'change_sleep'
-  | 'bulk_reschedule';
+  | 'bulk_reschedule'
+  | 'remember';
 
 export interface AIAction {
   type: AIActionType;

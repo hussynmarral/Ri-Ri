@@ -5,6 +5,7 @@ import { useScheduleStore } from '@/stores/scheduleStore';
 import { useWaterStore } from '@/stores/waterStore';
 import { useWorkoutStore } from '@/stores/workoutStore';
 import { useHabitStore } from '@/stores/habitStore';
+import { useAIPrefsStore } from '@/stores/aiPrefsStore';
 import { bootstrapApp } from '@/lib/bootstrap';
 import { todayDateISO } from '@/lib/scheduler/engine';
 
@@ -16,6 +17,7 @@ export function useAppInit() {
   const loadWater = useWaterStore((s) => s.load);
   const loadWorkout = useWorkoutStore((s) => s.load);
   const loadHabits = useHabitStore((s) => s.load);
+  const loadAIPrefs = useAIPrefsStore((s) => s.load);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,6 +35,7 @@ export function useAppInit() {
           loadWater(userId, date),
           loadWorkout(userId, date),
           loadHabits(userId, date),
+          loadAIPrefs(),
         ]);
       }
 
@@ -53,6 +56,7 @@ export function useAppInit() {
     loadWater(uid, date);
     loadWorkout(uid, date);
     loadHabits(uid, date);
+    loadAIPrefs();
     bootstrapApp(uid);
   }, [user?.id]);
 
