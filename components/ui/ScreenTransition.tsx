@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -15,9 +15,19 @@ interface Props {
   children: React.ReactNode;
 }
 
-// Wraps a screen. Renders RadialBackground always-visible behind the content,
-// then fades + slides the content in on every tab focus.
 export function ScreenTransition({ children }: Props) {
+  if (Platform.OS === 'web') {
+    return (
+      <View style={{ flex: 1 }}>
+        <RadialBackground />
+        <View style={{ flex: 1 }}>{children}</View>
+      </View>
+    );
+  }
+  return <AnimatedScreenTransition>{children}</AnimatedScreenTransition>;
+}
+
+function AnimatedScreenTransition({ children }: Props) {
   const opacity    = useSharedValue(0);
   const translateY = useSharedValue(16);
 
@@ -38,7 +48,6 @@ export function ScreenTransition({ children }: Props) {
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Background stays at full opacity — not affected by the fade-in animation */}
       <RadialBackground />
       <Animated.View style={style}>{children}</Animated.View>
     </View>
